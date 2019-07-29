@@ -74,6 +74,14 @@ import io.grpc.stub.StreamObserver;
 
 public class SpeechService extends Service {
 
+    //Normal = 16000
+    //Phone  = 8000
+    //8000HzはVoiceRecoderクラスで対応してない気がしなくもない
+    static final int SAMPLE_RATE = 16000;
+
+//    static final String LANG_CODE = "en-US";//America - English
+    static final String LANG_CODE = "ja-JP";//Japan
+
     public interface Listener {
 
         /**
@@ -301,8 +309,8 @@ public class SpeechService extends Service {
                     RecognizeRequest.newBuilder()
                             .setConfig(RecognitionConfig.newBuilder()
                                     .setEncoding(RecognitionConfig.AudioEncoding.LINEAR16)
-                                    .setLanguageCode("en-US")
-                                    .setSampleRateHertz(16000)
+                                    .setLanguageCode(LANG_CODE)
+                                    .setSampleRateHertz(SAMPLE_RATE)
                                     .build())
                             .setAudio(RecognitionAudio.newBuilder()
                                     .setContent(ByteString.readFrom(stream))

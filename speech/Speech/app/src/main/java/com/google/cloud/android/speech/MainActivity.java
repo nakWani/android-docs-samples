@@ -23,7 +23,9 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.res.ResourcesCompat;
@@ -52,11 +54,17 @@ public class MainActivity extends AppCompatActivity implements MessageDialogFrag
 
     private SpeechService mSpeechService;
 
+    protected ProcessManager mPM;
+    protected MyTextToSpeech mT2S;
+
+
+    //CallBack
     private VoiceRecorder mVoiceRecorder;
     private final VoiceRecorder.Callback mVoiceCallback = new VoiceRecorder.Callback() {
 
         @Override
         public void onVoiceStart() {
+            //音声認識後自動で起動
             showStatus(true);
             if (mSpeechService != null) {
                 mSpeechService.startRecognizing(mVoiceRecorder.getSampleRate());
@@ -72,6 +80,7 @@ public class MainActivity extends AppCompatActivity implements MessageDialogFrag
 
         @Override
         public void onVoiceEnd() {
+            //音が切れれば自動で終了
             showStatus(false);
             if (mSpeechService != null) {
                 mSpeechService.finishRecognizing();
@@ -79,6 +88,7 @@ public class MainActivity extends AppCompatActivity implements MessageDialogFrag
         }
 
     };
+
 
     // Resource caches
     private int mColorHearing;
@@ -106,6 +116,9 @@ public class MainActivity extends AppCompatActivity implements MessageDialogFrag
 
     };
 
+
+
+    //Android Active
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -122,16 +135,53 @@ public class MainActivity extends AppCompatActivity implements MessageDialogFrag
 
         mRecyclerView = (RecyclerView) findViewById(R.id.recycler_view);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+
         final ArrayList<String> results = savedInstanceState == null ? null :
                 savedInstanceState.getStringArrayList(STATE_RESULTS);
-        mAdapter = new ResultAdapter(results);
+        mAdapter = new ResultAdapter(results);//ResultAdapterは以下で作られたもの
         mRecyclerView.setAdapter(mAdapter);
+
+        //追記
+        mPM = new ProcessManager();
+        mT2S = new MyTextToSpeech(this);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
 
+//        // Prepare Cloud Speech API
+//        bindService(new Intent(this, SpeechService.class), mServiceConnection, BIND_AUTO_CREATE);
+//
+//        // Start listening to voices
+//        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+//                == PackageManager.PERMISSION_GRANTED) {
+//            startVoiceRecorder();
+//        } else if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+//                Manifest.permission.RECORD_AUDIO)) {
+//            showPermissionMessageDialog();
+//        } else {
+//            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO},
+//                    REQUEST_RECORD_AUDIO_PERMISSION);
+//        }
+        MyOnStart();
+    }
+
+    @Override
+    protected void onStop() {
+        // Stop listening to voice
+//        stopVoiceRecorder();
+//
+//        // Stop Cloud Speech API
+//        mSpeechService.removeListener(mSpeechServiceListener);
+//        unbindService(mServiceConnection);
+//        mSpeechService = null;
+        MyOnStop();
+
+        super.onStop();
+    }
+
+    private void MyOnStart(){
         // Prepare Cloud Speech API
         bindService(new Intent(this, SpeechService.class), mServiceConnection, BIND_AUTO_CREATE);
 
@@ -146,10 +196,10 @@ public class MainActivity extends AppCompatActivity implements MessageDialogFrag
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO},
                     REQUEST_RECORD_AUDIO_PERMISSION);
         }
+
     }
 
-    @Override
-    protected void onStop() {
+    private void MyOnStop(){
         // Stop listening to voice
         stopVoiceRecorder();
 
@@ -157,9 +207,8 @@ public class MainActivity extends AppCompatActivity implements MessageDialogFrag
         mSpeechService.removeListener(mSpeechServiceListener);
         unbindService(mServiceConnection);
         mSpeechService = null;
-
-        super.onStop();
     }
+
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
@@ -252,6 +301,8 @@ public class MainActivity extends AppCompatActivity implements MessageDialogFrag
                                     mText.setText(null);
                                     mAdapter.addResult(text);
                                     mRecyclerView.smoothScrollToPosition(0);
+
+                                    ResponseMessages(text);
                                 } else {
                                     mText.setText(text);
                                 }
@@ -260,6 +311,58 @@ public class MainActivity extends AppCompatActivity implements MessageDialogFrag
                     }
                 }
             };
+
+
+    private void ResponseMessages(String message){
+        String responseMessage = "";
+
+        responseMessage = mPM.getResMessage(message);
+        if(responseMessage.length() > 0){
+            mAdapter.addResult(responseMessage);
+            mRecyclerView.smoothScrollToPosition(0);
+            myTextToSpeech(responseMessage);
+        }
+
+    }
+
+    private void myTextToSpeech(final String message){
+//        MyOnStop();
+        int delayTime = (message.length() / 6) * 1000 + 1000;//感覚的値
+        mT2S.speechText(message);
+//
+//        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                MyOnStart();
+//            }
+//        }, delayTime);
+
+
+    }
+
+    /** Test用の簡易メソッド
+     * @param message 受信メッセージ
+     */
+    private void ResponseMessages_Test(String message){
+        String responseMessage = "hoge";
+
+
+        if(message.contains("hoge")){
+
+        } else if (message.contains("こんにちは")) {
+            responseMessage = "res：こんにちは！";
+            mAdapter.addResult(responseMessage);
+            mRecyclerView.smoothScrollToPosition(0);
+        } else {
+            responseMessage = "res：Let's say \"こんにちはー\"";
+            mAdapter.addResult(responseMessage);
+            mRecyclerView.smoothScrollToPosition(0);
+        }
+
+        return;//なくてもいい
+    }
+
+
 
     private static class ViewHolder extends RecyclerView.ViewHolder {
 
@@ -276,6 +379,7 @@ public class MainActivity extends AppCompatActivity implements MessageDialogFrag
 
         private final ArrayList<String> mResults = new ArrayList<>();
 
+        //resultsになにかあったらリストに入れるっぽい
         ResultAdapter(ArrayList<String> results) {
             if (results != null) {
                 mResults.addAll(results);
